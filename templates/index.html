@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Valuation App</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 5px; }
+        input, select, button { padding: 8px; margin-bottom: 10px; }
+        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .tabs { display: flex; margin-bottom: 20px; }
+        .tab { padding: 10px; background-color: #f1f1f1; border: 1px solid #ccc; cursor: pointer; }
+        .tab.active { background-color: #ddd; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Financial Statement & Valuation Data Extractor</h1>
+        <p>Extracts raw financial statements and runs Damodaran-style Intrinsic (FCFF/FCFE) Valuation.</p>
+        
+        <form action="/extract" method="post">
+            <div class="form-group">
+                <label for="ticker">Enter Ticker Symbol (e.g., AAPL, MSFT, TSLA):</label>
+                <input type="text" id="ticker" name="ticker" value="AAPL" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="method">Choose Data Extraction Method:</label>
+                <select id="method" name="method">
+                    <option value="yfinance">yfinance (API - Best for Valuation Extract)</option>
+                    <option value="beautifulsoup">BeautifulSoup (HTML Scraping - Raw Statements Only)</option>
+                </select>
+            </div>
+            
+            <button type="submit">Extract Financial Data & Run Valuation</button>
+        </form>
+        
+        {% if data %}
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('income')">Income Statement</div>
+            <div class="tab" onclick="showTab('balance')">Balance Sheet</div>
+            <div class="tab" onclick="showTab('cashflow')">Cash Flow</div>
+            <div class="tab" onclick="showTab('valuation')">Valuation Dashboard</div>
+        </div>
+        
+        <div id="income" class="tab-content active">
+            <h2>Income Statement</h2>
+            {{ data.income_statement | safe }}
+        </div>
+        
+        <div id="balance" class="tab-content">
+            <h2>Balance Sheet</h2>
+            {{ data.balance_sheet | safe }}
+        </div>
+        
+        <div id="cashflow" class="tab-content">
+            <h2>Cash Flow</h2>
+            {{ data.cash_flow | safe }}
+        </div>
+        
+        <div id="valuation" class="tab-content">
+            <h2>Valuation Dashboard</h2>
+            {% if data.valuation %}
+                <div class="form-group">
+                    <h3>Extracted Key Metrics</h3>
+                    <p>Current Share Price: ${{ data.valuation.price }}</p>
+                    <p>Total Debt: ${{ "%.2f"|format(data.valuation.total_debt / 1e9) }} B</p>
+                    <p>Net Debt: ${{ "%.2f"|format(data.valuation.net_debt / 1e9) }} B</p>
+                    <p>Effective Tax Rate: {{ "%.1f"|format(data.valuation.tax_rate * 100) }}%</p>
+                </div>
+                
+                <h3>Valuation Assumptions</h3>
+                <form action="/recalculate" method="post">
+                    <input type="hidden" name="ticker" value="{{ data.ticker }}">
+                    <div class="form-group">
+                        <label for="coe">Cost of Equity (%):</label>
+                        <input type="number" id="coe" name="coe" value="{{ "%.2f"|format(data.valuation.coe * 100) }}" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label for="cod">Cost of Debt (%):</label>
+                        <input type="number" id="cod" name="cod" value="{{ "%.2f"|format(data.valuation.cod * 100) }}" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label for="tax">Tax Rate (%):</label>
+                        <input type="number" id="tax" name="tax" value="{{ "%.2f"|format(data.valuation.tax_rate * 100) }}" step="1.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="growth">Growth Rate (Yrs 1-5) (%):</label>
+                        <input type="number" id="growth" name="growth" value="{{ "%.2f"|format(data.valuation.growth * 100) }}" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label for="term_growth">Terminal Growth (%):</label>
+                        <input type="number" id="term_growth" name="term_growth" value="2.5" step="0.1">
+                    </div>
+                    <button type="submit">Recalculate Valuation</button>
+                </form>
+                
+                <h3>Final Valuation Output</h3>
+                <p>Implied Price (FCFE Model): ${{ "%.2f"|format(data.valuation.fcfe_price) }}</p>
+                <p>Implied Price (FCFF Model): ${{ "%.2f"|format(data.valuation.fcff_price) }}</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => tab.classList.remove('active'));
+            contents.forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+    </script>
+</body>
+</html>
